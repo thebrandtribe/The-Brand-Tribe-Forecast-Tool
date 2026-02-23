@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Brand Tribe - Forecasting Sales</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background-color: #f8fafc; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+        .ninja-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; }
+        .active-tab { color: #000; border-bottom: 3px solid #000; }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .logo-img { max-height: 50px; width: auto; }
+        @media print { .no-print { display: none; } }
+    </style>
+</head>
+<body class="pb-32">
+
+    <div class="bg-white p-6 border-b sticky top-0 z-30 shadow-sm flex flex-col items-center gap-4">
+        <img src="https://base64.guru/assets/images/logo.png" alt="The Brand Tribe Logo" class="logo-img" onerror="this.src='https://i.ibb.co/v4mYFvD/logo.png'">
+        <h1 class="font-bold text-sm tracking-[0.2em] uppercase text-gray-800">Forecasting Sales</h1>
+    </div>
+
+    <div class="p-4 max-w-2xl mx-auto">
+        
+        <h2 class="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-3">Yearly Overview</h2>
+        <div class="grid grid-cols-3 gap-3 mb-8">
+            <div class="bg-gray-800 text-white p-4 rounded-xl shadow-md">
+                <p class="text-[9px] font-bold uppercase opacity-70">Annual Target</p>
+                <div class="flex items-center">
+                    <span class="cur-sym mr-1 text-xs">£</span>
+                    <input type="number" id="annual-target-input" oninput="calculate()" class="bg-transparent font-black text-lg w-full focus:outline-none" value="100000">
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <p class="text-[9px] text-gray-400 font-bold uppercase">Total Forecast</p>
+                <p class="text-lg font-black text-gray-900" id="total-forecast">£0</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <p class="text-[9px] text-gray-400 font-bold uppercase">Total Actual</p>
+                <p class="text-lg font-black text-green-600" id="total-actual">£0</p>
+            </div>
+        </div>
+
+        <h2 class="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-3">Quarterly Performance</h2>
+        <div id="quarterly-grid" class="grid grid-cols-2 gap-3 mb-10">
+            </div>
+
+        <h2 class="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-3">Monthly Breakdown</h2>
+        <div id="month-list" class="space-y-6">
+            </div>
+    </div>
+
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around p-4 shadow-2xl z-40 no-print">
+        <select id="currency" onchange="calculate()" class="bg-gray-100 border-none rounded-lg px-3 py-1 text-xs font-bold">
+            <option value="£">GBP £</option>
+            <option value="$">USD $</option>
+            <option value="€">EUR €</option>
+        </select>
+        <button onclick="window.print()" class="flex flex-col items-center text-gray-400 hover:text-black">
+            <i class="fas fa-print"></i>
+            <span class="text-[9px] mt-1 font-bold">PRINT</span>
+        </button>
+        <button onclick="if(confirm('Reset all data?')) { localStorage.clear(); location.reload(); }" class="flex flex-col items-center text-gray-400 hover:text-red-500">
+            <i class="fas fa-redo"></i>
+            <span class="text-[9px] mt-1 font-bold">RESET</span>
+        </button>
+    </div>
+
+    <script>
+        const monthConfig = [
+            { name: "April", q: 1 }, { name: "May", q: 1 }, { name: "June", q: 1 },
+            { name: "July", q: 2 }, { name: "August", q: 2 }, { name: "September", q: 2 },
+            { name: "October", q: 3 }, { name: "November", q: 3 }, { name: "December", q: 3 },
+            { name: "January", q: 4 }, { name: "February", q: 4 }, { name: "March", q: 4 }
+        ];
+
+        let state = JSON.parse(localStorage.getItem('tribeData')) || {
+            target: 100000,
+            months: monthConfig.map(() => [{ client: '', forecast: 0, actual: 0 }])
+        };
+
+        function init() {
+            document.getElementById('annual-target-input').value = state.target;
+            renderMonths();
+            calculate();
+        }
+
+        function renderMonths() {
+            const list = document.getElementById('month-list');
+            list.innerHTML = '';
+            
+            state.months.forEach((clients, mIdx) => {
+                let monthHtml = `
+                    <div class="ninja-card overflow-hidden shadow-sm border-l-4 border-l-gray-800">
+                        <div class="bg-gray-50 p-3 border-b flex justify-between items-center">
+                            <span class="font-black text-gray-800 uppercase text-xs tracking-tighter">${monthConfig[mIdx].name}</span>
+                            <button onclick="addClient(${mIdx})" class="text-[10px] bg-black text-white px-3 py-1 rounded-full font-bold hover:bg-gray-700 transition">
+                                <i class="fas fa-plus mr-1"></i> ADD CLIENT
+                            </button>
+                        </div>
+                        <div class="p-4 space-y-4" id="clients-${mIdx}">
+                            ${clients.map((c, cIdx) => `
+                                <div class="grid grid-cols-12 gap-2 items-end border-b border-gray-50 pb-3">
+                                    <div class="col-span-5">
+                                        <label class="text-[8px] text-gray-400 font-bold uppercase">Client</label>
+                                        <input type="text" value="${c.client}" oninput="updateData(${mIdx}, ${cIdx}, 'client', this.value)" 
+                                            class="w-full text-xs font-bold focus:outline-none border-b border-transparent focus:border-gray-200 py-1" placeholder="Enter Name...">
+                                    </div>
+                                    <div class="col-span-3">
+                                        <label class="text-[8px] text-gray-400 font-bold uppercase">Forecast</label>
+                                        <input type="number" value="${c.forecast}" oninput="updateData(${mIdx}, ${cIdx}, 'forecast', this.value)" 
+                                            class="w-full text-xs font-black focus:outline-none py-1">
+                                    </div>
+                                    <div class="col-span-3">
+                                        <label class="text-[8px] text-gray-400 font-bold uppercase text-green-600">Actual</label>
+                                        <input type="number" value="${c.actual}" oninput="updateData(${mIdx}, ${cIdx}, 'actual', this.value)" 
+                                            class="w-full text-xs font-black text-green-700 focus:outline-none py-1">
+                                    </div>
+                                    <div class="col-span-1 text-right">
+                                        <button onclick="removeClient(${mIdx}, ${cIdx})" class="text-gray-300 hover:text-red-500"><i class="fas fa-times text-xs"></i></button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>`;
+                list.innerHTML += monthHtml;
+            });
+        }
+
+        function addClient(mIdx) {
+            state.months[mIdx].push({ client: '', forecast: 0, actual: 0 });
+            saveAndRefill();
+        }
+
+        function removeClient(mIdx, cIdx) {
+            if(state.months[mIdx].length > 1) {
+                state.months[mIdx].splice(cIdx, 1);
+                saveAndRefill();
+            }
+        }
+
+        function updateData(mIdx, cIdx, field, val) {
+            state.months[mIdx][cIdx][field] = field === 'client' ? val : parseFloat(val) || 0;
+            save();
+            calculate();
+        }
+
+        function save() {
+            state.target = parseFloat(document.getElementById('annual-target-input').value) || 0;
+            localStorage.setItem('tribeData', JSON.stringify(state));
+        }
+
+        function saveAndRefill() {
+            save();
+            renderMonths();
+            calculate();
+        }
+
+        function calculate() {
+            const sym = document.getElementById('currency').value;
+            let totalF = 0;
+            let totalA = 0;
+            let qData = { 1: {f:0, a:0}, 2: {f:0, a:0}, 3: {f:0, a:0}, 4: {f:0, a:0} };
+
+            state.months.forEach((clients, mIdx) => {
+                const q = monthConfig[mIdx].q;
+                clients.forEach(c => {
+                    totalF += c.forecast;
+                    totalA += c.actual;
+                    qData[q].f += c.forecast;
+                    qData[q].a += c.actual;
+                });
+            });
+
+            // Update Yearly
+            document.getElementById('total-forecast').innerText = sym + totalF.toLocaleString();
+            document.getElementById('total-actual').innerText = sym + totalA.toLocaleString();
+            document.querySelectorAll('.cur-sym').forEach(el => el.innerText = sym);
+
+            // Update Quarterly Grid
+            const grid = document.getElementById('quarterly-grid');
+            grid.innerHTML = '';
+            for(let i=1; i<=4; i++) {
+                const qTarget = state.target / 4;
+                grid.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                        <p class="text-[10px] font-black text-gray-800 mb-2 border-b pb-1">QUARTER ${i}</p>
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[9px] uppercase font-bold text-gray-400"><span>Target</span><span class="text-gray-900">${sym}${qTarget.toLocaleString()}</span></div>
+                            <div class="flex justify-between text-[9px] uppercase font-bold text-gray-400"><span>Forecast</span><span class="text-gray-900">${sym}${qData[i].f.toLocaleString()}</span></div>
+                            <div class="flex justify-between text-[9px] uppercase font-black text-gray-400"><span>Actual</span><span class="text-green-600">${sym}${qData[i].a.toLocaleString()}</span></div>
+                        </div>
+                    </div>`;
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
